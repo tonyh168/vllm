@@ -7,4 +7,6 @@ python dump_layer_outputs.py \
     --prompt "hello?" \
     --max-tokens 3 \
     --dump-mode fine \
+    --prefill-only \
+    --layers 0 \
     --output-dir ./layer_dumps

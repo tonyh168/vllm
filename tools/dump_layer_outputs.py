@@ -26,9 +26,10 @@ import torch
 class HookManager:
     """Manages forward hooks on model layers and captures tensor outputs."""
 
-    def __init__(self, dump_mode: str = "coarse", layers: list[int] | None = None):
+    def __init__(self, dump_mode: str = "coarse", layers: list[int] | None = None, prefill_only: bool = False):
         self.dump_mode = dump_mode
         self.target_layers = layers
+        self.prefill_only = prefill_only
         self.captured: dict[str, dict[str, torch.Tensor]] = defaultdict(dict)
         self.handles: list[torch.utils.hooks.RemovableHook] = []
         self._call_counts: dict[str, int] = defaultdict(int)
@@ -55,6 +56,8 @@ class HookManager:
                 ref_tensor = None
 
             step = self._get_step_name(layer_name, ref_tensor)
+            if self.prefill_only and step != "prefill":
+                return
             key_prefix = f"{step}/{layer_name}"
 
             if isinstance(output, tuple):
@@ -103,13 +106,26 @@ class HookManager:
                 self.handles.append(h)
 
                 if self.dump_mode == "fine":
-                    if hasattr(layer, "self_attn"):
-                        h = layer.self_attn.register_forward_hook(
+                    # input_layernorm: right before attention
+                    if hasattr(layer, "input_layernorm"):
+                        h = layer.input_layernorm.register_forward_hook(
                             self._make_hook(
-                                f"{layer_name}/self_attn", ["attn_output"]
+                                f"{layer_name}/input_layernorm", ["output"]
                             )
                         )
                         self.handles.append(h)
+
+                    if hasattr(layer, "self_attn"):
+                        # qkv_proj: linear projection before rotary
+                        if hasattr(layer.self_attn, "qkv_proj"):
+                            h = layer.self_attn.qkv_proj.register_forward_hook(
+                                self._make_hook(
+                                    f"{layer_name}/self_attn/qkv_proj", ["qkv"]
+                                )
+                            )
+                            self.handles.append(h)
+
+                        # rotary_emb: applies positional encoding to q, k
                         if hasattr(layer.self_attn, "rotary_emb"):
                             h = layer.self_attn.rotary_emb.register_forward_hook(
                                 self._make_hook(
@@ -118,6 +134,13 @@ class HookManager:
                                 )
                             )
                             self.handles.append(h)
+
+                        h = layer.self_attn.register_forward_hook(
+                            self._make_hook(
+                                f"{layer_name}/self_attn", ["attn_output"]
+                            )
+                        )
+                        self.handles.append(h)
                     if hasattr(layer, "mlp"):
                         h = layer.mlp.register_forward_hook(
                             self._make_hook(f"{layer_name}/mlp", ["mlp_output"])
@@ -271,6 +294,9 @@ def main():
     parser.add_argument(
         "--dtype", default="auto", help="Model dtype (auto, float16, bfloat16)"
     )
+    parser.add_argument(
+        "--prefill-only", action="store_true", help="Only dump prefill stage outputs, skip decode steps"
+    )
     args = parser.parse_args()
 
     target_layers = None
@@ -298,7 +324,7 @@ def main():
     llm = LLM(**llm_kwargs)
 
     # Register hooks via public apply_model API
-    hook_manager = HookManager(dump_mode=args.dump_mode, layers=target_layers)
+    hook_manager = HookManager(dump_mode=args.dump_mode, layers=target_layers, prefill_only=args.prefill_only)
     register_hooks_on_model(llm, hook_manager)
 
     # Run inference
