@@ -124,6 +124,16 @@ class HookManager:
                                 )
                             )
                             self.handles.append(h)
+                            # Dump qkv_proj weights directly
+                            qkv = layer.self_attn.qkv_proj
+                            if hasattr(qkv, "weight") and qkv.weight is not None:
+                                self.captured[f"weights/{layer_name}/self_attn/qkv_proj"]["weight"] = (
+                                    qkv.weight.detach().clone().cpu()
+                                )
+                            if hasattr(qkv, "bias") and qkv.bias is not None:
+                                self.captured[f"weights/{layer_name}/self_attn/qkv_proj"]["bias"] = (
+                                    qkv.bias.detach().clone().cpu()
+                                )
 
                         # rotary_emb: applies positional encoding to q, k
                         if hasattr(layer.self_attn, "rotary_emb"):
