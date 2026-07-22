@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vllm-reference"
+version = "0.1.0"
+description = "vLLM reference plugin - hardware-agnostic reference implementation"
+requires-python = ">=3.10"
+dependencies = ["vllm>=0.20.0"]
+
+[project.entry-points."vllm.platform_plugins"]
+reference = "vllm_reference:register"
+
+[project.entry-points."vllm.general_plugins"]
+reference_ops = "vllm_reference:register_ops"
+
+[tool.setuptools.packages.find]
+include = ["vllm_reference*"]
