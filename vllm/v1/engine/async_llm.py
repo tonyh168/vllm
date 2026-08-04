@@ -12,7 +12,7 @@ from typing import Any
 import torch
 
 import vllm.envs as envs
-from vllm import TokensPrompt
+from vllm.inputs import TokensPrompt
 from vllm.config import VllmConfig
 from vllm.distributed.weight_transfer.base import (
     WeightTransferInitRequest,
