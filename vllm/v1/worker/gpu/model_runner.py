@@ -103,14 +103,13 @@ from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
 
 logger = init_logger(__name__)
 
-if os.getenv("USE_FLAGOS") == "1":
-    import flag_gems
-    flag_gems.enable(record=False)
-    flag_gems.disable("mm")
-    flag_gems.disable("mm_out")
-    flag_gems.disable("sort")
-    flag_gems.disable("sort_stable")
-    logger.info("FlagGems enabled with mm and sort operators disabled")
+if os.getenv("USE_FLAGGEMS", "false").lower() in ("1", "true", "yes"):
+    try:
+        import flag_gems
+        flag_gems.enable(record=True, path="/workspace/flaggems_enable_oplist.txt", unused=["sort", "mm", "mm_out", "sort_stable"])
+        logger.info("Successfully enabled flag_gems as default ops implementation.")
+    except ImportError:
+        logger.warning("Failed to import 'flag_gems'. Falling back to default implementation.")
 
 
 class GPUModelRunner(LoRAModelRunnerMixin):
