@@ -19,6 +19,7 @@ instead of embedding feature-specific logic directly.
 
 import functools
 import gc
+import os
 import time
 from copy import deepcopy
 from typing import Any, NamedTuple
@@ -101,6 +102,15 @@ from vllm.v1.worker.gpu.structured_outputs import StructuredOutputsWorker
 from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
 
 logger = init_logger(__name__)
+
+if os.getenv("USE_FLAGOS") == "1":
+    import flag_gems
+    flag_gems.enable(record=False)
+    flag_gems.disable("mm")
+    flag_gems.disable("mm_out")
+    flag_gems.disable("sort")
+    flag_gems.disable("sort_stable")
+    logger.info("FlagGems enabled with mm and sort operators disabled")
 
 
 class GPUModelRunner(LoRAModelRunnerMixin):
