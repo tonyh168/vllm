@@ -627,6 +627,25 @@ class Qwen3_5ForConditionalGenerationConfig(VerifyAndUpdateConfig):
             )
 
 
+class Qwen3_5MoeForCausalLMConfig(VerifyAndUpdateConfig):
+    """Qwen3.5 MoE CausalLM with hybrid attention (linear + full attention).
+    Handles both mamba_ssm_cache_dtype and mamba_block_size initialization.
+    """
+    @staticmethod
+    def verify_and_update_config(vllm_config: "VllmConfig") -> None:
+        cache_config = vllm_config.cache_config
+        hf_config = vllm_config.model_config.hf_config
+
+        # Set mamba_ssm_cache_dtype from model config
+        mamba_ssm_dtype = getattr(hf_config, "mamba_ssm_dtype", None)
+        if cache_config.mamba_ssm_cache_dtype == "auto":
+            if mamba_ssm_dtype is not None:
+                cache_config.mamba_ssm_cache_dtype = mamba_ssm_dtype
+
+        # Initialize mamba_block_size via MambaModelConfig
+        MambaModelConfig.verify_and_update_config(vllm_config)
+
+
 class ColQwen3_5Config(Qwen3_5ForConditionalGenerationConfig):
     """ColQwen3.5 (late-interaction retrieval) inherits Qwen3.5's mamba cache
     handling and additionally serves BIDIRECTIONAL attention: ColPali-style
@@ -702,6 +721,7 @@ MODELS_CONFIG_MAP: dict[str, type[VerifyAndUpdateConfig]] = {
     "Qwen3ForSequenceClassification": Qwen3ForSequenceClassificationConfig,
     "Qwen3VLForSequenceClassification": Qwen3VLForSequenceClassificationConfig,
     "Qwen3_5ForConditionalGeneration": Qwen3_5ForConditionalGenerationConfig,
+    "Qwen3_5MoeForCausalLM": Qwen3_5MoeForCausalLMConfig,
     "Qwen3_5MoeForConditionalGeneration": Qwen3_5ForConditionalGenerationConfig,
     "VoyageQwen3BidirectionalEmbedModel": VoyageQwen3BidirectionalEmbedModelConfig,
     "XLMRobertaModel": JinaRobertaModelConfig,
