@@ -1350,6 +1350,9 @@ def unify_hybrid_kv_cache_specs(kv_cache_spec: dict[str, KVCacheSpec]):
     has_swa_mla = any(
         isinstance(spec, SlidingWindowMLASpec) for spec in kv_cache_spec.values()
     )
+    has_mamba = any(
+        isinstance(spec, MambaSpec) for spec in kv_cache_spec.values()
+    )
 
     uniform_block_size: int | None = None
     if has_swa_mla:
@@ -1364,6 +1367,14 @@ def unify_hybrid_kv_cache_specs(kv_cache_spec: dict[str, KVCacheSpec]):
             )
         )
         uniform_block_size = any_full_spec.block_size
+
+    # Handle Attention + Mamba hybrid models (e.g., Qwen3.5)
+    if has_full_attention and has_mamba:
+        # Find max page_size to align all specs
+        max_page_size = max(spec.page_size_bytes for spec in kv_cache_spec.values())
+        for layer_name, spec in kv_cache_spec.items():
+            if spec.page_size_bytes < max_page_size:
+                object.__setattr__(spec, "page_size_padded", max_page_size)
 
     if has_full_attention and (has_sliding_window or has_chunked_local_attention):
         for layer_name, spec in kv_cache_spec.items():
