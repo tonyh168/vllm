@@ -830,7 +830,11 @@ class Worker(WorkerBase):
     def sample_tokens(
         self, grammar_output: "GrammarOutput | None"
     ) -> ModelRunnerOutput | AsyncModelRunnerOutput:
-        return self.model_runner.sample_tokens(grammar_output)
+        import sys
+        print(f"[DBG-WORKER] sample_tokens starting", file=sys.stderr, flush=True)
+        result = self.model_runner.sample_tokens(grammar_output)
+        print(f"[DBG-WORKER] sample_tokens completed", file=sys.stderr, flush=True)
+        return result
 
     @torch.inference_mode()
     def execute_model(

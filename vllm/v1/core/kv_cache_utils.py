@@ -1078,6 +1078,7 @@ def unify_kv_cache_spec_page_size(
             new_kv_cache_spec[layer_name] = layer_spec
         else:
             layer_page_size = layer_spec.page_size_bytes
+            logger.info(f"[DEBUG] Layer {layer_name}: type={type(layer_spec).__name__}, layer_page_size={layer_page_size}, max_page_size={max_page_size}, divisible={max_page_size % layer_page_size == 0}, indexes_kv_by_block_stride={getattr(layer_spec, 'indexes_kv_by_block_stride', 'N/A')}, all_fields={layer_spec}")
             if max_page_size % layer_page_size == 0:
                 ratio = max_page_size // layer_page_size
                 new_block_size = layer_spec.block_size * ratio
@@ -1719,20 +1720,28 @@ def get_kv_cache_groups(
         # KV cache of all layers are the same, which is true for
         # most models. Allocate the same amount of memory for
         # each layer.
+        logger.info("[DEBUG-PATH] Taking uniform_spec path")
         return _get_kv_cache_groups_uniform_spec(kv_cache_spec)
     elif uniform_spec := UniformTypeKVCacheSpecs.from_specs(kv_cache_spec):
         # All layers need the same number of token slots (e.g., all layers are
         # full attention, or all layers are sliding window attention with the
         # same window size). Put all layers into one group.
+        logger.info("[DEBUG-PATH] Taking uniform_type path")
         return _get_kv_cache_groups_uniform_type(uniform_spec)
     elif grouped_specs := group_and_unify_kv_cache_specs(kv_cache_spec):
         # DeepseekV4 case: All layers need the same number of token slots,
         # yet some layers are full attention while others are sliding window
         # attention in different sizes. Need to group layers into multiple
         # UniformTypeKVCacheSpecs.
+        logger.info("[DEBUG-PATH] Taking grouped_specs path")
         kv_cache_groups = _get_kv_cache_groups_uniform_groups(grouped_specs)
         _annotate_eagle_groups_deepseek_v4(vllm_config, kv_cache_spec, kv_cache_groups)
         return kv_cache_groups
+    else:
+        block_sizes = {k: v.block_size for k, v in kv_cache_spec.items()}
+        unique_blocks = set(block_sizes.values())
+        types_set = {k: type(v).__name__ for k, v in kv_cache_spec.items()}
+        logger.info(f"[DEBUG-PATH] Fallthrough! unique_block_sizes={unique_blocks}, spec_types={set(types_set.values())}, sample_specs={{k: (types_set[k], block_sizes[k]) for k in list(kv_cache_spec.keys())[:5]}}...")
 
     # Pull HiddenStateCacheSpec layers out before the general multi-group
     # path so they don't affect page-size unification or grouping.
